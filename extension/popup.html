@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>NotebookLM Automation</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h2>Personalização de NotebookLM</h2>
+    
+    <div class="checkbox-group" style="margin-bottom: 10px; display: none;">
+        <label><input type="checkbox" id="createNew"> Create New Notebook</label>
+    </div>
+
+    <div style="display: none;">
+      <label for="notebookName">Notebook Name:</label>
+      <input type="text" id="notebookName" placeholder="My Notebook" />
+
+      <label for="sourceType">Source Type:</label>
+      <select id="sourceType">
+        <option value="website">Website</option>
+        <option value="youtube">YouTube</option>
+        <option value="text" selected>Text</option>
+      </select>
+    </div>
+
+    <label for="urls">Tópicos para Personalização (opcional):</label>
+    <textarea
+      id="urls"
+      rows="6"
+      placeholder="Ex: Focar na conclusão;&#10;Resumir pontos chave..."
+    ></textarea>
+
+    <div class="assets-section">
+      <label>Generate Assets:</label>
+      <div id="assetCheckboxes" class="checkbox-group">
+        <label><input type="checkbox" value="audio"> Áudio</label>
+        <label><input type="checkbox" value="video"> Vídeo</label>
+        <label><input type="checkbox" value="mental"> Mapa Mental</label>
+        <label><input type="checkbox" value="reports"> Relatórios</label>
+        <label><input type="checkbox" value="flashcards"> Cartões</label>
+        <label><input type="checkbox" value="quiz"> Teste</label>
+        <label><input type="checkbox" value="infographic"> Infográfico</label>
+        <label><input type="checkbox" value="slides"> Slides</label>
+      </div>
+    </div>
+
+      <button id="startBtn">Start Automation</button>
+
+      <div id="status" class="status"></div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

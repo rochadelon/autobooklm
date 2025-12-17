@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "NotebookLM Asset Generator",
+  "version": "1.1",
+  "description": "Automatize a geração de assets personalizados no Google NotebookLM com tópicos customizados.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://notebooklm.google.com/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://notebooklm.google.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
