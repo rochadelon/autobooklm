@@ -35,6 +35,55 @@ function getElementByText(selector, text) {
   return null;
 }
 
+function findPromptField(modal) {
+  const container = modal || document;
+
+  // First, try fields that look like the prompt textarea/input
+  const direct = container.querySelector('textarea[aria-label*="tema" i], textarea[aria-label*="topic" i], textarea[formcontrolname], textarea.mat-input-element, textarea, [contenteditable="true"], input[type="text"], input[role="combobox"]');
+  if (direct) return direct;
+
+  // Then, find the label "Qual deve ser o tema?" and grab the nearest textarea/input
+  const label = Array.from(container.querySelectorAll('label, span, div, p'))
+    .find(el => normalizeText(el.innerText).includes('qual deve ser o tema'));
+
+  if (label) {
+    const field = label.parentElement?.querySelector('textarea, [contenteditable="true"], input[type="text"]') ||
+                  label.closest('form, div')?.querySelector('textarea, [contenteditable="true"], input[type="text"]');
+    if (field) return field;
+  }
+
+  return null;
+}
+
+async function waitForGenerationToFinish(modal, timeout = 20000) {
+  const start = Date.now();
+
+  const isLoading = () => {
+    const container = modal || document;
+    const spinners = container.querySelectorAll('.mat-mdc-progress-spinner, .mdc-circular-progress, svg[aria-label*="progress"]');
+    const busyButton = container.querySelector('button[aria-busy="true"], button:disabled');
+    const visibleSpinner = Array.from(spinners).some(sp => sp.offsetParent !== null);
+    return visibleSpinner || !!busyButton;
+  };
+
+  while (Date.now() - start < timeout) {
+    if (!isLoading()) {
+      return true;
+    }
+    await sleep(500);
+  }
+
+  return false;
+}
+
+function findCloseButton(modal) {
+  if (!modal) return null;
+  return modal.querySelector('button[aria-label*="close" i]') ||
+         modal.querySelector('button[aria-label*="fechar" i]') ||
+         modal.querySelector('button[mat-dialog-close]') ||
+         modal.querySelector('button.mdc-icon-button');
+}
+
 let isAutomationRunning = false;
 
 const assetMapping = {
@@ -50,7 +99,7 @@ const assetMapping = {
 
 async function generateAssetWithTopic(assetKey, singleTopic) {
   log(`--- Cycle: Asset '${assetKey}' with topic '${singleTopic.substring(0, 30)}...' ---`);
-  await sleep(1000);
+  await sleep(2000);
 
   const labelsToTry = assetMapping[assetKey] || [assetKey];
   let assetLabelEl = null;
@@ -94,24 +143,21 @@ async function generateAssetWithTopic(assetKey, singleTopic) {
       log(`Found Customize button for ${assetKey}. Opening modal...`);
       editBtn.click();
       
-      await sleep(1500); // Wait for modal to fully open
+      await sleep(3000); // Wait for modal to fully open
       
-      // Debug: Log all potential input elements
-      const allTextareas = document.querySelectorAll('textarea');
-      const allContentEditable = document.querySelectorAll('[contenteditable="true"]');
-      const allInputs = document.querySelectorAll('input[type="text"]');
-      log(`[Debug] Found ${allTextareas.length} textareas, ${allContentEditable.length} contenteditable, ${allInputs.length} text inputs`);
+      // Find the modal/dialog first, then look for textarea inside it
+      const modal = document.querySelector('mat-dialog-container') ||
+                    document.querySelector('[role="dialog"]') ||
+                    document.querySelector('.cdk-overlay-pane') ||
+                    document.querySelector('.mdc-dialog__surface') ||
+                    document.querySelector('.mat-mdc-dialog-surface');
       
-      // Try multiple selectors
-      let textarea = await waitForElement("textarea", 3000);
-      if (!textarea) textarea = await waitForElement("[contenteditable='true']", 2000);
-      if (!textarea) textarea = await waitForElement("mat-form-field textarea", 1000);
-      if (!textarea) textarea = await waitForElement(".mat-input-element", 1000);
-      if (!textarea) textarea = await waitForElement("input[type='text']", 1000);
-      if (!textarea) textarea = document.querySelector('textarea');
-      if (!textarea) textarea = document.querySelector('[contenteditable="true"]');
+      log(`[Debug] Modal found: ${modal ? 'YES' : 'NO'}`);
       
-      if (textarea) {
+        const textarea = findPromptField(modal);
+        log(`[Debug] Prompt field found: ${textarea ? 'YES' : 'NO'}`);
+
+        if (textarea) {
            const promptPrefix = "Gere este conteúdo com base no seguinte tópico:\n";
            const fullMessage = promptPrefix + `• ${singleTopic}`;
            
@@ -119,7 +165,7 @@ async function generateAssetWithTopic(assetKey, singleTopic) {
            log(`[Debug] Textarea found: ${textarea.tagName}, id=${textarea.id || 'none'}`);
            
            textarea.focus();
-           await sleep(500);
+           await sleep(1000);
            
            // Clear existing content
            if (textarea.tagName === 'TEXTAREA' || textarea.tagName === 'INPUT') {
@@ -160,7 +206,7 @@ async function generateAssetWithTopic(assetKey, singleTopic) {
            textarea.dispatchEvent(inputEvent);
            textarea.dispatchEvent(new Event('change', { bubbles: true }));
            
-           await sleep(2000);
+           await sleep(3000);
            
            const generateBtn = getElementByText("button", "Gerar") || 
                                getElementByText("span", "Gerar") ||
@@ -172,17 +218,25 @@ async function generateAssetWithTopic(assetKey, singleTopic) {
            if (generateBtn) {
                log("Clicking 'Gerar' button.");
                const actualBtn = generateBtn.closest("button") || generateBtn;
-               await sleep(1000);
+               await sleep(2000);
                if (!actualBtn.disabled) {
                    actualBtn.click();
-                   await sleep(5000); // Wait for generation to complete
+                 const finished = await waitForGenerationToFinish(modal, 20000);
+                 if (!finished) {
+                   log("Warning: Generation did not finish before timeout.");
+                 }
+                 const closeBtn = findCloseButton(modal);
+                   if (closeBtn) {
+                     closeBtn.click();
+                     await sleep(2000);
+                     log("Closed customization modal; allowing UI to settle.");
+                   }
+                   await sleep(1500); // small buffer before next topic/asset
                }
            }
-      } else {
-          log("Warning: Customize modal closed. Clicking default asset.");
-          assetLabelEl.click();
-          await sleep(2000);
-      }
+        } else {
+          log("Warning: Prompt field not found in modal; skipping this asset to avoid wrong insertion.");
+        }
   } else {
       log(`Customize button not found for ${assetKey}. Clicking default asset button.`);
       assetLabelEl.click();
@@ -224,6 +278,9 @@ async function startAutomation(data) {
         for (const assetKey of data.assets) {
             await generateAssetWithTopic(assetKey, topic);
         }
+
+      // Pause between topics to ensure NotebookLM finishes background work
+      await sleep(2000);
     }
 
     log("Automation Finished Successfully.");
